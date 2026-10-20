@@ -5,6 +5,7 @@ Shader "Custom/UI_AlwaysOnTop"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
+
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
         _StencilOp ("Stencil Operation", Float) = 0
@@ -32,18 +33,21 @@ Shader "Custom/UI_AlwaysOnTop"
         }
 
         Cull Off
-        Lighting Off
         ZWrite Off
         ZTest Always
         Blend SrcAlpha OneMinusSrcAlpha
+        ColorMask [_ColorMask]
 
         Pass
         {
             Name "UI Always On Top"
 
             HLSLPROGRAM
+
             #pragma vertex vert
             #pragma fragment frag
+
+            #pragma multi_compile_instancing
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
@@ -52,6 +56,8 @@ Shader "Custom/UI_AlwaysOnTop"
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR;
+
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -59,6 +65,8 @@ Shader "Custom/UI_AlwaysOnTop"
                 float4 positionHCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR;
+
+                UNITY_VERTEX_OUTPUT_STEREO
             };
 
             TEXTURE2D(_MainTex);
@@ -70,7 +78,11 @@ Shader "Custom/UI_AlwaysOnTop"
 
             Varyings vert(Attributes input)
             {
-                Varyings output;
+                Varyings output = (Varyings)0;
+
+                UNITY_SETUP_INSTANCE_ID(input);
+
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
                 VertexPositionInputs positionInputs =
                     GetVertexPositionInputs(input.positionOS.xyz);
@@ -86,6 +98,8 @@ Shader "Custom/UI_AlwaysOnTop"
 
             half4 frag(Varyings input) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
                 half4 color =
                     SAMPLE_TEXTURE2D(
                         _MainTex,

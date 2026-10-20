@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
 
-public class ObjectDragController : MonoBehaviour
+public class ObjectDragController : MonoBehaviour, ICameraReceiver
 {
     [Header("Äá¼v¾÷")]
     [SerializeField] private Camera mainCamera;
@@ -230,4 +230,8 @@ public class ObjectDragController : MonoBehaviour
         return count > 0;
     }
 
+    public void SetCamera(Camera camera)
+    {
+        mainCamera = camera;
+    }
 }

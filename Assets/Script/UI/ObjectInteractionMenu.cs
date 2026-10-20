@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public class ObjectInteractionMenu : MonoBehaviour
+public class ObjectInteractionMenu : MonoBehaviour, ICameraReceiver
 {
     [Header("Canvas")]
     [SerializeField] private Canvas interactionCanvas;
@@ -86,5 +86,9 @@ public class ObjectInteractionMenu : MonoBehaviour
     {
         if (deleteButton != null)
             deleteButton.onClick.RemoveListener(DeleteSelectedObject);
+    }
+    public void SetCamera(Camera camera)
+    {
+        mainCamera = camera;
     }
 }

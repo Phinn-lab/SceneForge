@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
-public class ObjectSelector : MonoBehaviour
+public class ObjectSelector : MonoBehaviour, ICameraReceiver
 {
     [Header("Äá¼v¾÷")]
     [SerializeField] private Camera mainCamera;
@@ -44,5 +44,9 @@ public class ObjectSelector : MonoBehaviour
 
         if (interactionMenu != null)
             interactionMenu.Hide();
+    }
+    public void SetCamera(Camera camera)
+    {
+        mainCamera = camera;
     }
 }
