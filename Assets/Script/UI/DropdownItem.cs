@@ -1,4 +1,3 @@
-
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -7,6 +6,8 @@ public class DropdownItem : MonoBehaviour,
 {
     private GameObject objectPrefab;
     private ObjectDragController dragController;
+
+    private bool isDragging;
 
     public void Initialize(GameObject prefab,ObjectDragController controller)
     {
@@ -22,7 +23,9 @@ public class DropdownItem : MonoBehaviour,
         if (objectPrefab == null || dragController == null)
             return;
 
-        dragController.BeginDrag(objectPrefab);
+        dragController.BeginDrag(objectPrefab, eventData);
+
+        isDragging = dragController.IsDragging;
     }
 
     public void OnDrag(PointerEventData eventData)
@@ -32,10 +35,17 @@ public class DropdownItem : MonoBehaviour,
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (eventData.button != PointerEventData.InputButton.Left)
+        if (!isDragging)
             return;
 
+        isDragging = false;
+
         if (dragController != null)
-            dragController.EndDrag();
+            dragController.EndDrag(eventData);
+    }
+
+    private void OnDisable()
+    {
+        isDragging = false;
     }
 }

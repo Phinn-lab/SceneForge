@@ -128,3 +128,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlacementFootprint
   center: {x: -0.18, y: 1.36, z: 0}
   size: {x: 3.43, y: 2.62, z: 3.68}
+  canSelect: 0

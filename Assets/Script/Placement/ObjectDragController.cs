@@ -1,12 +1,19 @@
-
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 public class ObjectDragController : MonoBehaviour, ICameraReceiver
 {
     [Header("攝影機")]
     [SerializeField] private Camera mainCamera;
+
+    [Header("VR 右手射線")]
+    [SerializeField] private NearFarInteractor rightNearFarInteractor;
+
+    [Header("VR 射線目標")]
+    [SerializeField] private GameObject dragRayTarget;
 
     [Header("地面圖層")]
     [SerializeField] private LayerMask terrainLayer;
@@ -24,7 +31,6 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
 
     [Header("指引線顏色")]
     [SerializeField] private Material validLineMaterial;
-
     [SerializeField] private Material invalidLineMaterial;
 
     [Header("物件重疊檢查")]
@@ -34,6 +40,7 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
     [SerializeField] private ObjectInteractionMenu interactionMenu;
 
     private readonly Collider[] overlapResults = new Collider[128];
+
     private bool isPlacementBlocked;
 
     private GameObject currentPrefab;
@@ -44,6 +51,10 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
 
     private Vector3 placementPosition;
 
+    private int activePointerId = -1;
+    private bool dragStartedInVR;
+    private bool pointerOverUI;
+
     public bool IsDragging => isDragging;
 
     private void Update()
@@ -51,22 +62,37 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
         if (!isDragging)
             return;
 
+        if (ModeManager.Instance != null && ModeManager.Instance.IsVRMode != dragStartedInVR)
+        {
+            CancelDrag();
+            return;
+        }
+
         UpdatePreviewPosition();
     }
 
-    public void BeginDrag(GameObject prefab)
+    public void BeginDrag(GameObject prefab,PointerEventData eventData)
     {
-        if (prefab == null || mainCamera == null)
+        if (prefab == null)
             return;
+
+        CancelDrag();
+
+        dragStartedInVR = ModeManager.Instance != null && ModeManager.Instance.IsVRMode;
+
+        if (dragStartedInVR)
+        {
+            if (rightNearFarInteractor == null)
+                return;
+        }
+        else
+        {
+            if (mainCamera == null)
+                return;
+        }
 
         if (interactionMenu != null)
             interactionMenu.Hide();
-
-        if (placementLine != null)
-            placementLine.enabled = false;
-
-
-        CancelDrag();
 
         currentPrefab = prefab;
         previewObject = Instantiate(prefab);
@@ -78,32 +104,81 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
             col.enabled = false;
         }
 
+        activePointerId = eventData.pointerId;
+        pointerOverUI = false;
+
         isDragging = true;
         hasValidPosition = false;
 
         UpdatePreviewPosition();
-
     }
 
+    public void UpdateDragPointer(PointerEventData eventData)
+    {
+        if (!isDragging)
+            return;
+
+        if (eventData.pointerId != activePointerId)
+            return;
+
+        pointerOverUI = IsPointerOverUI(eventData);
+    }
+
+    private bool IsPointerOverUI(PointerEventData eventData)
+    {
+        if (eventData.pointerCurrentRaycast.gameObject != null)
+            return true;
+
+        return false;
+    }
 
     private void UpdatePreviewPosition()
     {
-        Mouse mouse = Mouse.current;
-
-        if (mouse == null || previewObject == null)
+        if (previewObject == null)
             return;
 
-        Vector2 mousePosition = mouse.position.ReadValue();
+        Ray ray;
 
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+        if (dragStartedInVR)
+        {
+            if (rightNearFarInteractor == null)
+            {
+                HidePlacementPreview();
+                return;
+            }
+
+            Transform rayOrigin = rightNearFarInteractor.curveOrigin;
+
+            if (rayOrigin == null)
+            {
+                HidePlacementPreview();
+                return;
+            }
+
+            ray = new Ray(rayOrigin.position,rayOrigin.forward);
+        }
+        else
+        {
+            Mouse mouse = Mouse.current;
+
+            if (mouse == null || mainCamera == null)
+            {
+                HidePlacementPreview();
+                return;
+            }
+
+            Vector2 mousePosition = mouse.position.ReadValue();
+
+            ray = mainCamera.ScreenPointToRay(mousePosition);
+        }
+
+        if (IsPointerOverUI())
         {
             HidePlacementPreview();
             return;
         }
 
-        Ray ray = mainCamera.ScreenPointToRay(mousePosition);
-
-        hasValidPosition = Physics.Raycast(ray,out RaycastHit hit,raycastDistance,terrainLayer,QueryTriggerInteraction.Ignore);
+        hasValidPosition = Physics.Raycast( ray, out RaycastHit hit, raycastDistance, terrainLayer, QueryTriggerInteraction.Ignore);
 
         if (!hasValidPosition)
         {
@@ -128,16 +203,11 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
         {
             placementLine.enabled = true;
 
-            Vector3 startPosition = previewPosition;
+            placementLine.SetPosition(0, previewPosition);
 
-            Vector3 endPosition = placementPosition + Vector3.up * lineOffset;
+            placementLine.SetPosition(1, placementPosition + Vector3.up * lineOffset);
 
-            placementLine.SetPosition(0, startPosition);
-            placementLine.SetPosition(1, endPosition);
-
-            Material lineMaterial = isPlacementBlocked ? invalidLineMaterial : validLineMaterial;
-
-            placementLine.material = lineMaterial;
+            placementLine.material = isPlacementBlocked ? invalidLineMaterial : validLineMaterial;
         }
 
         if (placementDecalEffect != null)
@@ -148,17 +218,25 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
 
             placementDecalEffect.Play();
         }
+
+        if (dragStartedInVR && dragRayTarget != null)
+        {
+            dragRayTarget.transform.position = placementPosition;
+            dragRayTarget.SetActive(true);
+        }
     }
 
-
-    public void EndDrag()
+    public void EndDrag(PointerEventData eventData)
     {
         if (!isDragging)
             return;
 
+        if (eventData.pointerId != activePointerId)
+            return;
+
         UpdatePreviewPosition();
 
-        bool isOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        bool isOverUI = IsPointerOverUI();
 
         if (hasValidPosition &&!isPlacementBlocked &&!isOverUI)
         {
@@ -170,7 +248,7 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
         CancelDrag();
     }
 
-    private void CancelDrag()
+    public void CancelDrag()
     {
         if (previewObject != null)
             Destroy(previewObject);
@@ -180,13 +258,43 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
 
         isDragging = false;
         hasValidPosition = false;
+        isPlacementBlocked = false;
+
+        activePointerId = -1;
+        pointerOverUI = false;
 
         if (placementLine != null)
             placementLine.enabled = false;
 
         if (placementDecalEffect != null)
             placementDecalEffect.Stop();
+
+        if (dragRayTarget != null)
+            dragRayTarget.SetActive(false);
     }
+
+    private bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null)
+            return false;
+
+        if (dragStartedInVR)
+            return IsVRPointerOverUI();
+
+        return EventSystem.current.IsPointerOverGameObject();
+    }
+
+    private bool IsVRPointerOverUI()
+    {
+        if (EventSystem.current == null)
+            return false;
+
+        if (activePointerId == -1)
+            return false;
+
+        return EventSystem.current.IsPointerOverGameObject(activePointerId);
+    }
+
     private void HidePlacementPreview()
     {
         hasValidPosition = false;
@@ -200,9 +308,12 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
 
         if (placementDecalEffect != null)
             placementDecalEffect.Stop();
+
+        if (dragRayTarget != null)
+            dragRayTarget.SetActive(false);
     }
 
-    private void SetLayerRecursively(GameObject obj,int layer)
+    private void SetLayerRecursively(GameObject obj, int layer)
     {
         obj.layer = layer;
 
@@ -211,7 +322,6 @@ public class ObjectDragController : MonoBehaviour, ICameraReceiver
             SetLayerRecursively(child.gameObject, layer);
         }
     }
-
 
     private bool CheckPlacementBlocked()
     {

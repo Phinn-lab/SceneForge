@@ -2,6 +2,7 @@
 using System;
 using UnityEngine;
 using Unity.XR.CoreUtils;
+using UnityEngine.InputSystem.UI;
 
 public class ModeManager : MonoBehaviour
 {
@@ -30,6 +31,10 @@ public class ModeManager : MonoBehaviour
     [SerializeField] private bool syncPosition = true;
 
     [SerializeField] private bool syncRotation = true;
+
+    [SerializeField] private ObjectDragController dragController;
+
+    [SerializeField] private InputSystemUIInputModule pcInputModule;
 
     public ControlMode CurrentMode { get; private set; } = ControlMode.PC;
 
@@ -92,6 +97,11 @@ public class ModeManager : MonoBehaviour
 
     private void ApplyMode(ControlMode mode, bool synchronize)
     {
+        if (dragController != null && dragController.IsDragging)
+        {
+            dragController.CancelDrag();
+        }
+
         bool isVR = mode == ControlMode.VR;
 
         if (synchronize)
@@ -105,6 +115,11 @@ public class ModeManager : MonoBehaviour
         if (pcCamera != null)
         {
             pcCamera.gameObject.SetActive(!isVR);
+        }
+
+        if (pcInputModule != null)
+        {
+            pcInputModule.enabled = !isVR;
         }
 
         if (vrCamera != null)
