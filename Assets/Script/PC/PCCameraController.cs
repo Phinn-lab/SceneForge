@@ -1,7 +1,7 @@
-
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(CharacterController))]
 public class PCCameraController : MonoBehaviour
 {
     [Header("移動設定")]
@@ -10,8 +10,19 @@ public class PCCameraController : MonoBehaviour
     [Header("旋轉設定")]
     [SerializeField] private float rotationSpeed = 0.5f;
 
+    [Header("重力設定")]
+    [SerializeField] private float gravity = -9.81f;
+
+    private CharacterController characterController;
+
     private float yaw;
     private float pitch;
+    private float verticalVelocity;
+
+    private void Awake()
+    {
+        characterController = GetComponent<CharacterController>();
+    }
 
     private void Start()
     {
@@ -38,9 +49,6 @@ public class PCCameraController : MonoBehaviour
     {
         Keyboard keyboard = Keyboard.current;
 
-        if (keyboard == null)
-            return;
-
         Vector3 direction = Vector3.zero;
 
         Vector3 forward = transform.forward;
@@ -52,21 +60,37 @@ public class PCCameraController : MonoBehaviour
         forward.Normalize();
         right.Normalize();
 
-        if (keyboard.wKey.isPressed)
-            direction += forward;
+        if (keyboard != null)
+        {
+            if (keyboard.wKey.isPressed)
+                direction += forward;
 
-        if (keyboard.sKey.isPressed)
-            direction -= forward;
+            if (keyboard.sKey.isPressed)
+                direction -= forward;
 
-        if (keyboard.aKey.isPressed)
-            direction -= right;
+            if (keyboard.aKey.isPressed)
+                direction -= right;
 
-        if (keyboard.dKey.isPressed)
-            direction += right;
+            if (keyboard.dKey.isPressed)
+                direction += right;
+        }
 
         direction = Vector3.ClampMagnitude(direction, 1f);
 
-        transform.position += direction * moveSpeed * Time.deltaTime;
+        Vector3 horizontalMovement = direction * moveSpeed;
+
+        if (characterController.isGrounded && verticalVelocity < 0f)
+        {
+            verticalVelocity = -2f;
+        }
+        else
+        {
+            verticalVelocity += gravity * Time.deltaTime;
+        }
+
+        Vector3 movement = horizontalMovement + Vector3.up * verticalVelocity;
+
+        characterController.Move(movement * Time.deltaTime);
     }
 
     private void HandleRotation()
